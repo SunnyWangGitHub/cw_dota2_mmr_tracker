@@ -3,34 +3,57 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Dota2 MMR 趋势记录</title>
+  <title>Dota2 MMR Tracker</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; background: #f0f2f5; color: #333; }
-    h1 { text-align: center; margin-bottom: 20px; font-size: 24px; }
-    .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .input-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
-    input, button { padding: 10px 15px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; outline: none; }
-    input:focus { border-color: #4caf50; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; background: #1c1e21; color: #e4e6eb; }
+    h1 { text-align: center; margin-bottom: 10px; font-size: 24px; color: #fff; }
+    
+    .container { max-width: 1000px; margin: 0 auto; background: #242526; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    
+    /* 段位展示区域 */
+    .rank-display {
+      text-align: center;
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #3a3b3c;
+      border-radius: 8px;
+      border: 1px solid #4e4f50;
+    }
+    .rank-title { font-size: 14px; color: #b0b3b8; margin-bottom: 5px; }
+    .rank-name { font-size: 28px; font-weight: bold; background: linear-gradient(45deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .rank-mmr { font-size: 18px; color: #fff; margin-top: 5px; }
+
+    .input-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #3e4042; }
+    input, button { padding: 10px 15px; font-size: 16px; border: 1px solid #3e4042; border-radius: 6px; outline: none; background: #18191a; color: white; }
+    input:focus { border-color: #2e7d32; }
     button { background: #2e7d32; color: white; border: none; cursor: pointer; font-weight: bold; transition: background 0.2s; }
     button:hover { background: #1b5e20; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    #chart { width: 100%; height: 500px; }
-    .loading { text-align: center; color: #666; display: none; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    
+    #chart { width: 100%; height: 600px; } /* 增加高度以容纳两个图表 */
+    .loading { text-align: center; color: #b0b3b8; display: none; }
   </style>
 </head>
 
 <body>
 
 <div class="container">
-  <h1>📊 Dota2 MMR 爬坑之路</h1>
+  <h1>⚔️ Dota2 MMR Tracker</h1>
+
+  <!-- 新增：段位展示 -->
+  <div class="rank-display">
+    <div class="rank-title">当前段位 (Season 4)</div>
+    <div class="rank-name" id="current-rank">暂无数据</div>
+    <div class="rank-mmr" id="current-mmr">--</div>
+  </div>
 
   <div class="input-group">
     <input type="date" id="date-picker">
     <input type="number" id="mmr-input" placeholder="输入当前 MMR">
-    <button id="save-btn">💾 记录一下</button>
+    <button id="save-btn">💾 记录战绩</button>
   </div>
   
-  <p id="loading-text" class="loading">正在同步数据...</p>
+  <p id="loading-text" class="loading">正在同步云端数据...</p>
   <div id="chart"></div>
 </div>
 
@@ -39,7 +62,7 @@
 
 <!-- Firebase SDK -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"; // 使用稳定版本
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import {
     getFirestore,
     collection,
@@ -50,7 +73,7 @@
     orderBy
   } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  // 配置
+  // ⚠️⚠️⚠️ 请在此处替换为你自己的 Firebase 配置 ⚠️⚠️⚠️
   const firebaseConfig = {
     apiKey: "AIzaSyCSAb-Cgpn3IYzytnV5twT4QmdDMHz6-kU",
     authDomain: "cw-dota2-mmr-tracker.firebaseapp.com",
@@ -60,16 +83,38 @@
     appId: "1:682798543046:web:d8380bb8122d109b67e7c7"
   };
 
-
-  // 初始化
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const mmrCol = collection(db, "mmrHistory");
   
-  // 1. 设置默认日期为今天
   document.getElementById("date-picker").valueAsDate = new Date();
 
-  // 2. 保存逻辑
+  // --- 核心逻辑 1: 段位计算 ---
+  function calculateMedal(mmr) {
+    if (mmr < 770) return { name: "Herald (先锋)", stars: getStars(mmr, 0) };
+    if (mmr < 1540) return { name: "Guardian (卫士)", stars: getStars(mmr, 770) };
+    if (mmr < 2310) return { name: "Crusader (中军)", stars: getStars(mmr, 1540) };
+    if (mmr < 3080) return { name: "Archon (统帅)", stars: getStars(mmr, 2310) };
+    if (mmr < 3850) return { name: "Legend (传奇)", stars: getStars(mmr, 3080) };
+    if (mmr < 4620) return { name: "Ancient (万古)", stars: getStars(mmr, 3850) };
+    return { name: "Divine (超凡)", stars: getStars(mmr, 4620) }; // 5420+ 是冠绝，这里简化处理
+  }
+
+  function getStars(mmr, base) {
+    // 每颗星大约 154 分 (770 / 5)
+    const diff = mmr - base;
+    const starCount = Math.floor(diff / 154) + 1;
+    return starCount > 5 ? 5 : (starCount < 1 ? 1 : starCount);
+  }
+
+  function updateRankDisplay(mmr) {
+    const medal = calculateMedal(mmr);
+    const starStr = "★".repeat(medal.stars);
+    document.getElementById("current-rank").innerText = `${medal.name} ${starStr}`;
+    document.getElementById("current-mmr").innerText = `${mmr} MMR`;
+  }
+
+  // --- 保存逻辑 ---
   const saveBtn = document.getElementById("save-btn");
   saveBtn.addEventListener("click", async () => {
     const date = document.getElementById("date-picker").value;
@@ -84,59 +129,79 @@
     saveBtn.textContent = "保存中...";
 
     try {
-      // 使用 date_时间戳 作为ID，防止同一天多次记录覆盖问题（如果你想同一天多次记录）
-      // 如果你想同一天只保留最后一次，可以用 doc(mmrCol, date)
       await setDoc(doc(mmrCol, `${date}_${Date.now()}`), { 
         date: date, 
         mmr: mmrValue,
-        timestamp: Date.now() // 加上时间戳方便排序
+        timestamp: Date.now()
       });
-      
-      // 清空输入框
       document.getElementById("mmr-input").value = "";
-      console.log("保存成功");
     } catch (err) {
       console.error("写入失败:", err);
-      alert("保存失败！请检查 Firebase 控制台的 Rules 是否已设置为 allow write: if true");
+      alert("保存失败，请检查 Firebase Rules");
     } finally {
       saveBtn.disabled = false;
-      saveBtn.textContent = "💾 记录一下";
+      saveBtn.textContent = "💾 记录战绩";
     }
   });
 
-  // 3. 全局 Chart 实例，防止重复 init
+  // --- 数据处理与绘图 ---
   let myChart = null;
-
-  // 4. 监听数据变化
   document.getElementById("loading-text").style.display = "block";
   
-  // 这里的查询逻辑：虽然我们在客户端做聚合，但最好还是按某种顺序拉取
+  // 按时间戳排序查询，这对计算胜负至关重要
   const q = query(mmrCol); 
 
   onSnapshot(q, (snapshot) => {
     document.getElementById("loading-text").style.display = "none";
     
-    const map = new Map();
+    // 1. 提取所有原始记录并按时间排序
+    let rawRecords = [];
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
-      // 兼容旧数据，如果没有 date 字段跳过
       if(data.date && data.mmr) {
-        if (!map.has(data.date)) map.set(data.date, []);
-        map.get(data.date).push(data.mmr);
+        // 兼容旧数据，如果没有 timestamp 字段，用 date 补全一个
+        const ts = data.timestamp || new Date(data.date).getTime();
+        rawRecords.push({ ...data, timestamp: ts });
       }
     });
+    
+    // 确保绝对的时间顺序
+    rawRecords.sort((a, b) => a.timestamp - b.timestamp);
 
-    if (map.size === 0) {
-        // 还没有数据的情况
-        return;
-    }
-    drawChart(map);
-  }, (error) => {
-    console.error("读取数据失败:", error);
-    alert("读取数据失败，请检查 Firebase Rules 权限。");
+    if (rawRecords.length === 0) return;
+
+    // 更新最新段位
+    updateRankDisplay(rawRecords[rawRecords.length - 1].mmr);
+
+    // 2. 数据聚合
+    const map = new Map(); // 存 MMR 数组
+    const winLossMap = new Map(); // 存 {wins: 0, losses: 0}
+
+    let prevMMR = null;
+
+    rawRecords.forEach(record => {
+      const d = record.date;
+      
+      // 收集 MMR 用于箱线图
+      if (!map.has(d)) map.set(d, []);
+      map.get(d).push(record.mmr);
+
+      // 计算胜负 (对比上一条记录)
+      if (!winLossMap.has(d)) winLossMap.set(d, { wins: 0, losses: 0 });
+      
+      if (prevMMR !== null) {
+        if (record.mmr > prevMMR) {
+          winLossMap.get(d).wins += 1;
+        } else if (record.mmr < prevMMR) {
+          winLossMap.get(d).losses += 1;
+        }
+      }
+      prevMMR = record.mmr;
+    });
+
+    drawChart(map, winLossMap);
   });
 
-  // 辅助函数：计算箱线图的 [min, Q1, median, Q3, max]
   function calcBox(arr) {
     arr.sort((a, b) => a - b);
     const q1 = arr[Math.floor((arr.length - 1) * 0.25)];
@@ -145,85 +210,128 @@
     return [arr[0], q1, mid, q3, arr[arr.length - 1]];
   }
 
-  function drawChart(map) {
-    // 确保日期排序
-    const dates = [...map.keys()].sort();
+  function drawChart(mmrMap, wlMap) {
+    const dates = [...mmrMap.keys()].sort();
+    
     const boxData = [];
     const avgLine = [];
+    const winsData = [];
+    const lossesData = [];
 
     dates.forEach(d => {
-      const arr = map.get(d);
+      // 箱线图数据
+      const arr = mmrMap.get(d);
       boxData.push(calcBox(arr));
-      // 计算平均值保留整数
-      const avg = Math.round(arr.reduce((a,b) => a + b, 0) / arr.length);
-      avgLine.push(avg);
+      avgLine.push(Math.round(arr.reduce((a,b) => a + b, 0) / arr.length));
+
+      // 胜负数据
+      const wl = wlMap.get(d);
+      winsData.push(wl.wins);
+      lossesData.push(wl.losses); // 负场显示为正数，堆叠
     });
 
-    // 响应式配置
-    const w = window.innerWidth;
-    const isMobile = w < 600;
-
     const option = {
+      backgroundColor: '#242526', // 深色背景
       title: {
-        text: 'MMR 每日分布与均分趋势',
+        text: 'MMR 趋势 & 每日战况',
         left: 'center',
-        textStyle: { fontSize: isMobile ? 16 : 20 }
+        textStyle: { color: '#fff' }
       },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'shadow' },
-        formatter: function (param) {
-            // 自定义 tooltip 让他更易读
-            let result = `<strong>${param[0].name}</strong><br/>`;
-            param.forEach(p => {
-                if(p.seriesName === '平均MMR') {
-                    result += `平均分: ${p.value}<br/>`;
-                } else if (p.seriesName === '箱线图') {
-                    result += `最高: ${p.value[5]}<br/>`;
-                    result += `最低: ${p.value[1]}<br/>`;
-                    result += `中位: ${p.value[3]}<br/>`;
-                }
-            });
-            return result;
+        axisPointer: { type: 'cross' },
+        backgroundColor: 'rgba(50,50,50,0.9)',
+        borderColor: '#777',
+        textStyle: { color: '#fff' }
+      },
+      axisPointer: { link: { xAxisIndex: 'all' } }, // 两个图表坐标轴联动
+      legend: { 
+        top: 30, 
+        data: ['箱线图', '平均MMR', '胜', '负'],
+        textStyle: { color: '#ccc' }
+      },
+      grid: [
+        { left: '5%', right: '5%', height: '55%', top: '15%' }, // 上方图表 (MMR)
+        { left: '5%', right: '5%', top: '78%', height: '15%' }  // 下方图表 (胜负)
+      ],
+      xAxis: [
+        {
+          type: 'category',
+          data: dates,
+          gridIndex: 0,
+          axisLabel: { show: false }, // 上方图表隐藏X轴文字
+          axisLine: { lineStyle: { color: '#555' } }
+        },
+        {
+          type: 'category',
+          data: dates,
+          gridIndex: 1,
+          axisLabel: { color: '#999', rotate: 45 },
+          axisLine: { lineStyle: { color: '#555' } }
         }
-      },
-      legend: { top: 30, data: ['箱线图', '平均MMR'] },
-      grid: { left: '3%', right: '4%', bottom: '3%', top: 80, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: dates,
-        boundaryGap: true,
-        axisLabel: { rotate: 45 }
-      },
-      yAxis: {
-        type: 'value',
-        name: 'MMR',
-        scale: true, // 让Y轴不从0开始，这样更能看出分数的波动
-        splitArea: { show: true }
-      },
+      ],
+      yAxis: [
+        {
+          type: 'value',
+          name: 'MMR',
+          scale: true,
+          gridIndex: 0,
+          splitLine: { lineStyle: { color: '#333' } },
+          axisLabel: { color: '#ccc' },
+          nameTextStyle: { color: '#ccc' }
+        },
+        {
+          type: 'value',
+          name: '场次',
+          gridIndex: 1,
+          splitLine: { show: false },
+          axisLabel: { color: '#ccc', interval: 0 }, // 强制显示整数
+          minInterval: 1,
+          nameTextStyle: { color: '#ccc' }
+        }
+      ],
       series: [
         {
           name: '箱线图',
           type: 'boxplot',
+          xAxisIndex: 0,
+          yAxisIndex: 0,
           data: boxData,
-          itemStyle: { color: '#e0f2f1', borderColor: '#00695c' }
+          itemStyle: { color: '#00bcd4', borderColor: '#008ba3' }
         },
         {
           name: '平均MMR',
           type: 'line',
+          xAxisIndex: 0,
+          yAxisIndex: 0,
           data: avgLine,
           smooth: true,
-          symbolSize: 8,
-          lineStyle: { width: 3, color: '#ff9800' },
-          itemStyle: { color: '#ff9800' }
+          lineStyle: { width: 3, color: '#ffeb3b' },
+          symbol: 'none'
+        },
+        {
+          name: '胜',
+          type: 'bar',
+          stack: 'total', // 堆叠
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          data: winsData,
+          itemStyle: { color: '#4caf50' } // 绿色代表胜
+        },
+        {
+          name: '负',
+          type: 'bar',
+          stack: 'total', // 堆叠
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          data: lossesData,
+          itemStyle: { color: '#f44336' } // 红色代表负
         }
       ]
     };
 
-    // 关键修复：只初始化一次
     if (!myChart) {
       myChart = echarts.init(document.getElementById("chart"));
-      // 监听窗口大小变化
       window.addEventListener("resize", () => myChart.resize());
     }
     myChart.setOption(option);
