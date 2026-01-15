@@ -7,9 +7,9 @@
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; background: #1c1e21; color: #e4e6eb; }
     h1 { text-align: center; margin-bottom: 10px; font-size: 24px; color: #fff; }
-    
+
     .container { max-width: 1000px; margin: 0 auto; background: #242526; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-    
+
     /* 段位展示区域 */
     .rank-display {
       text-align: center;
@@ -29,8 +29,8 @@
     button { background: #2e7d32; color: white; border: none; cursor: pointer; font-weight: bold; transition: background 0.2s; }
     button:hover { background: #1b5e20; }
     button:disabled { background: #555; cursor: not-allowed; }
-    
-    #chart { width: 100%; height: 600px; } /* 增加高度以容纳两个图表 */
+
+    #chart { width: 100%; height: 600px; }
     .loading { text-align: center; color: #b0b3b8; display: none; }
   </style>
 </head>
@@ -40,7 +40,7 @@
 <div class="container">
   <h1>⚔️ Dota2 MMR Tracker</h1>
 
-  <!-- 新增：段位展示 -->
+  <!-- 段位展示 -->
   <div class="rank-display">
     <div class="rank-title">当前段位 (Season 4)</div>
     <div class="rank-name" id="current-rank">暂无数据</div>
@@ -52,7 +52,7 @@
     <input type="number" id="mmr-input" placeholder="输入当前 MMR">
     <button id="save-btn">💾 记录战绩</button>
   </div>
-  
+
   <p id="loading-text" class="loading">正在同步云端数据...</p>
   <div id="chart"></div>
 </div>
@@ -69,8 +69,7 @@
     doc,
     setDoc,
     onSnapshot,
-    query,
-    orderBy
+    query
   } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
   // ⚠️⚠️⚠️ 请在此处替换为你自己的 Firebase 配置 ⚠️⚠️⚠️
@@ -86,7 +85,7 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const mmrCol = collection(db, "mmrHistory");
-  
+
   document.getElementById("date-picker").valueAsDate = new Date();
 
   // --- 核心逻辑 1: 段位计算 ---
@@ -97,11 +96,10 @@
     if (mmr < 3080) return { name: "Archon (统帅)", stars: getStars(mmr, 2310) };
     if (mmr < 3850) return { name: "Legend (传奇)", stars: getStars(mmr, 3080) };
     if (mmr < 4620) return { name: "Ancient (万古)", stars: getStars(mmr, 3850) };
-    return { name: "Divine (超凡)", stars: getStars(mmr, 4620) }; // 5420+ 是冠绝，这里简化处理
+    return { name: "Divine (超凡)", stars: getStars(mmr, 4620) };
   }
 
   function getStars(mmr, base) {
-    // 每颗星大约 154 分 (770 / 5)
     const diff = mmr - base;
     const starCount = Math.floor(diff / 154) + 1;
     return starCount > 5 ? 5 : (starCount < 1 ? 1 : starCount);
@@ -129,10 +127,11 @@
     saveBtn.textContent = "保存中...";
 
     try {
-      await setDoc(doc(mmrCol, `${date}_${Date.now()}`), { 
-        date: date, 
+      // 使用 date_时间戳 作为ID
+      await setDoc(doc(mmrCol, `${date}_${Date.now()}`), {
+        date: date,
         mmr: mmrValue,
-        timestamp: Date.now()
+        timestamp: Date.now() // 记录写入时的绝对时间
       });
       document.getElementById("mmr-input").value = "";
     } catch (err) {
@@ -147,48 +146,64 @@
   // --- 数据处理与绘图 ---
   let myChart = null;
   document.getElementById("loading-text").style.display = "block";
-  
-  // 按时间戳排序查询，这对计算胜负至关重要
-  const q = query(mmrCol); 
+
+  const q = query(mmrCol);
 
   onSnapshot(q, (snapshot) => {
     document.getElementById("loading-text").style.display = "none";
-    
-    // 1. 提取所有原始记录并按时间排序
+
     let rawRecords = [];
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
       if(data.date && data.mmr) {
-        // 兼容旧数据，如果没有 timestamp 字段，用 date 补全一个
-        const ts = data.timestamp || new Date(data.date).getTime();
-        rawRecords.push({ ...data, timestamp: ts });
+        // 优先使用记录里的 timestamp，如果没有则解析 date 字符串
+        // 注意：补录旧数据时，我们希望它在图表上按旧日期排，但在“最新段位”逻辑里，
+        // 我们通常认为“日期最晚”的数据才是当前段位。
+        
+        // 修正逻辑：
+        // 1. 用于排序的时间戳：必须基于 data.date (比如 "2023-01-16")
+        // 2. 如果同一天有多条，再用 data.timestamp (毫秒级写入时间) 区分先后
+        
+        const dateTs = new Date(data.date).getTime();
+        const writeTs = data.timestamp || dateTs;
+        
+        rawRecords.push({
+          ...data,
+          sortKey: dateTs, // 主要排序键：日期
+          secondarySortKey: writeTs // 次要排序键：写入时间
+        });
       }
     });
-    
-    // 确保绝对的时间顺序
-    rawRecords.sort((a, b) => a.timestamp - b.timestamp);
 
     if (rawRecords.length === 0) return;
 
-    // 更新最新段位
-    updateRankDisplay(rawRecords[rawRecords.length - 1].mmr);
+    // 关键修正：严格排序
+    // 先比日期，日期相同比写入时间
+    rawRecords.sort((a, b) => {
+      if (a.sortKey !== b.sortKey) {
+        return a.sortKey - b.sortKey;
+      }
+      return a.secondarySortKey - b.secondarySortKey;
+    });
 
-    // 2. 数据聚合
-    const map = new Map(); // 存 MMR 数组
-    const winLossMap = new Map(); // 存 {wins: 0, losses: 0}
+    // 现在 rawRecords 的最后一个元素，一定是日期最晚的那一条
+    // 即使你刚刚补录了 1月13号的数据，排序后它会跑到 1月16号前面去
+    const latestRecord = rawRecords[rawRecords.length - 1];
+    updateRankDisplay(latestRecord.mmr);
 
+    // --- 下面是图表数据聚合逻辑 (保持不变) ---
+    const map = new Map();
+    const winLossMap = new Map();
     let prevMMR = null;
 
     rawRecords.forEach(record => {
       const d = record.date;
-      
-      // 收集 MMR 用于箱线图
+
       if (!map.has(d)) map.set(d, []);
       map.get(d).push(record.mmr);
 
-      // 计算胜负 (对比上一条记录)
       if (!winLossMap.has(d)) winLossMap.set(d, { wins: 0, losses: 0 });
-      
+
       if (prevMMR !== null) {
         if (record.mmr > prevMMR) {
           winLossMap.get(d).wins += 1;
@@ -212,26 +227,24 @@
 
   function drawChart(mmrMap, wlMap) {
     const dates = [...mmrMap.keys()].sort();
-    
+
     const boxData = [];
     const avgLine = [];
     const winsData = [];
     const lossesData = [];
 
     dates.forEach(d => {
-      // 箱线图数据
       const arr = mmrMap.get(d);
       boxData.push(calcBox(arr));
       avgLine.push(Math.round(arr.reduce((a,b) => a + b, 0) / arr.length));
 
-      // 胜负数据
       const wl = wlMap.get(d);
       winsData.push(wl.wins);
-      lossesData.push(wl.losses); // 负场显示为正数，堆叠
+      lossesData.push(wl.losses);
     });
 
     const option = {
-      backgroundColor: '#242526', // 深色背景
+      backgroundColor: '#242526',
       title: {
         text: 'MMR 趋势 & 每日战况',
         left: 'center',
@@ -244,22 +257,22 @@
         borderColor: '#777',
         textStyle: { color: '#fff' }
       },
-      axisPointer: { link: { xAxisIndex: 'all' } }, // 两个图表坐标轴联动
-      legend: { 
-        top: 30, 
+      axisPointer: { link: { xAxisIndex: 'all' } },
+      legend: {
+        top: 30,
         data: ['箱线图', '平均MMR', '胜', '负'],
         textStyle: { color: '#ccc' }
       },
       grid: [
-        { left: '5%', right: '5%', height: '55%', top: '15%' }, // 上方图表 (MMR)
-        { left: '5%', right: '5%', top: '78%', height: '15%' }  // 下方图表 (胜负)
+        { left: '5%', right: '5%', height: '55%', top: '15%' },
+        { left: '5%', right: '5%', top: '78%', height: '15%' }
       ],
       xAxis: [
         {
           type: 'category',
           data: dates,
           gridIndex: 0,
-          axisLabel: { show: false }, // 上方图表隐藏X轴文字
+          axisLabel: { show: false },
           axisLine: { lineStyle: { color: '#555' } }
         },
         {
@@ -285,7 +298,7 @@
           name: '场次',
           gridIndex: 1,
           splitLine: { show: false },
-          axisLabel: { color: '#ccc', interval: 0 }, // 强制显示整数
+          axisLabel: { color: '#ccc', interval: 0 },
           minInterval: 1,
           nameTextStyle: { color: '#ccc' }
         }
@@ -312,20 +325,20 @@
         {
           name: '胜',
           type: 'bar',
-          stack: 'total', // 堆叠
+          stack: 'total',
           xAxisIndex: 1,
           yAxisIndex: 1,
           data: winsData,
-          itemStyle: { color: '#4caf50' } // 绿色代表胜
+          itemStyle: { color: '#4caf50' }
         },
         {
           name: '负',
           type: 'bar',
-          stack: 'total', // 堆叠
+          stack: 'total',
           xAxisIndex: 1,
           yAxisIndex: 1,
           data: lossesData,
-          itemStyle: { color: '#f44336' } // 红色代表负
+          itemStyle: { color: '#f44336' }
         }
       ]
     };
@@ -340,3 +353,6 @@
 
 </body>
 </html>
+
+
+
