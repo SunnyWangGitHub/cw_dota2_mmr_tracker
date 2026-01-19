@@ -23,6 +23,31 @@
     .rank-name { font-size: 28px; font-weight: bold; background: linear-gradient(45deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .rank-mmr { font-size: 18px; color: #fff; margin-top: 5px; }
 
+    /* 新增：目标计算器样式 */
+    .goal-calculator {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #4e4f50;
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .goal-item {
+      background: #242526;
+      padding: 10px 15px;
+      border-radius: 6px;
+      text-align: center;
+      flex: 1;
+      min-width: 120px;
+      border: 1px solid #4e4f50;
+    }
+    .goal-name { font-size: 14px; color: #b0b3b8; margin-bottom: 5px; }
+    .goal-diff { font-size: 16px; font-weight: bold; color: #4caf50; }
+    .goal-games { font-size: 12px; color: #999; margin-top: 4px; }
+    .goal-games span { color: #fff; font-weight: bold; }
+    .goal-done { color: #4caf50; font-weight: bold; }
+
     .input-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #3e4042; }
     input, button { padding: 10px 15px; font-size: 16px; border: 1px solid #3e4042; border-radius: 6px; outline: none; background: #18191a; color: white; }
     input:focus { border-color: #2e7d32; }
@@ -45,6 +70,11 @@
     <div class="rank-title">当前段位 (Season 4)</div>
     <div class="rank-name" id="current-rank">暂无数据</div>
     <div class="rank-mmr" id="current-mmr">--</div>
+
+    <!-- 新增：目标计算器 -->
+    <div class="goal-calculator" id="goal-calc">
+      <!-- 这里的内容会由 JS 动态生成 -->
+    </div>
   </div>
 
   <div class="input-group">
@@ -72,7 +102,6 @@
     query
   } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  // ⚠️⚠️⚠️ 请在此处替换为你自己的 Firebase 配置 ⚠️⚠️⚠️
   const firebaseConfig = {
     apiKey: "AIzaSyCSAb-Cgpn3IYzytnV5twT4QmdDMHz6-kU",
     authDomain: "cw-dota2-mmr-tracker.firebaseapp.com",
@@ -105,11 +134,48 @@
     return starCount > 5 ? 5 : (starCount < 1 ? 1 : starCount);
   }
 
+  // --- 新增：更新目标计算器 ---
+  function updateGoals(currentMMR) {
+    const goals = [
+      { name: "Archon (统帅)", target: 2310 },
+      { name: "Legend (传奇)", target: 3080 }
+    ];
+
+    const container = document.getElementById("goal-calc");
+    container.innerHTML = ""; // 清空旧内容
+
+    goals.forEach(goal => {
+      const diff = goal.target - currentMMR;
+      const div = document.createElement("div");
+      div.className = "goal-item";
+
+      if (diff <= 0) {
+        div.innerHTML = `
+          <div class="goal-name">目标：${goal.name}</div>
+          <div class="goal-done">✅ 已达成</div>
+        `;
+      } else {
+        const normalGames = Math.ceil(diff / 25);
+        const doubleGames = Math.ceil(diff / 50);
+        div.innerHTML = `
+          <div class="goal-name">距离 ${goal.name}</div>
+          <div class="goal-diff">还差 ${diff} 分</div>
+          <div class="goal-games">普通(+25): <span>${normalGames}</span> 场</div>
+          <div class="goal-games">双倍(+50): <span>${doubleGames}</span> 场</div>
+        `;
+      }
+      container.appendChild(div);
+    });
+  }
+
   function updateRankDisplay(mmr) {
     const medal = calculateMedal(mmr);
     const starStr = "★".repeat(medal.stars);
     document.getElementById("current-rank").innerText = `${medal.name} ${starStr}`;
     document.getElementById("current-mmr").innerText = `${mmr} MMR`;
+    
+    // 同时更新目标
+    updateGoals(mmr);
   }
 
   // --- 保存逻辑 ---
@@ -127,11 +193,10 @@
     saveBtn.textContent = "保存中...";
 
     try {
-      // 使用 date_时间戳 作为ID
       await setDoc(doc(mmrCol, `${date}_${Date.now()}`), {
         date: date,
         mmr: mmrValue,
-        timestamp: Date.now() // 记录写入时的绝对时间
+        timestamp: Date.now()
       });
       document.getElementById("mmr-input").value = "";
     } catch (err) {
@@ -156,29 +221,20 @@
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
       if(data.date && data.mmr) {
-        // 优先使用记录里的 timestamp，如果没有则解析 date 字符串
-        // 注意：补录旧数据时，我们希望它在图表上按旧日期排，但在“最新段位”逻辑里，
-        // 我们通常认为“日期最晚”的数据才是当前段位。
-        
-        // 修正逻辑：
-        // 1. 用于排序的时间戳：必须基于 data.date (比如 "2023-01-16")
-        // 2. 如果同一天有多条，再用 data.timestamp (毫秒级写入时间) 区分先后
-        
         const dateTs = new Date(data.date).getTime();
         const writeTs = data.timestamp || dateTs;
-        
+
         rawRecords.push({
           ...data,
-          sortKey: dateTs, // 主要排序键：日期
-          secondarySortKey: writeTs // 次要排序键：写入时间
+          sortKey: dateTs,
+          secondarySortKey: writeTs
         });
       }
     });
 
     if (rawRecords.length === 0) return;
 
-    // 关键修正：严格排序
-    // 先比日期，日期相同比写入时间
+    // 严格排序
     rawRecords.sort((a, b) => {
       if (a.sortKey !== b.sortKey) {
         return a.sortKey - b.sortKey;
@@ -186,12 +242,11 @@
       return a.secondarySortKey - b.secondarySortKey;
     });
 
-    // 现在 rawRecords 的最后一个元素，一定是日期最晚的那一条
-    // 即使你刚刚补录了 1月13号的数据，排序后它会跑到 1月16号前面去
+    // 更新最新段位和目标
     const latestRecord = rawRecords[rawRecords.length - 1];
     updateRankDisplay(latestRecord.mmr);
 
-    // --- 下面是图表数据聚合逻辑 (保持不变) ---
+    // --- 图表数据聚合 ---
     const map = new Map();
     const winLossMap = new Map();
     let prevMMR = null;
