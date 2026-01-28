@@ -23,7 +23,7 @@
     .rank-name { font-size: 28px; font-weight: bold; background: linear-gradient(45deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .rank-mmr { font-size: 18px; color: #fff; margin-top: 5px; }
 
-    /* 新增：目标计算器样式 */
+    /* 目标计算器样式 */
     .goal-calculator {
       margin-top: 15px;
       padding-top: 15px;
@@ -71,7 +71,7 @@
     <div class="rank-name" id="current-rank">暂无数据</div>
     <div class="rank-mmr" id="current-mmr">--</div>
 
-    <!-- 新增：目标计算器 -->
+    <!-- 目标计算器 -->
     <div class="goal-calculator" id="goal-calc">
       <!-- 这里的内容会由 JS 动态生成 -->
     </div>
@@ -134,7 +134,7 @@
     return starCount > 5 ? 5 : (starCount < 1 ? 1 : starCount);
   }
 
-  // --- 新增：更新目标计算器 ---
+  // --- 更新目标计算器 ---
   function updateGoals(currentMMR) {
     const goals = [
       { name: "Archon (统帅)", target: 2310 },
@@ -173,8 +173,6 @@
     const starStr = "★".repeat(medal.stars);
     document.getElementById("current-rank").innerText = `${medal.name} ${starStr}`;
     document.getElementById("current-mmr").innerText = `${mmr} MMR`;
-    
-    // 同时更新目标
     updateGoals(mmr);
   }
 
@@ -273,25 +271,33 @@
   });
 
   function calcBox(arr) {
-    arr.sort((a, b) => a - b);
-    const q1 = arr[Math.floor((arr.length - 1) * 0.25)];
-    const mid = arr[Math.floor((arr.length - 1) * 0.5)];
-    const q3 = arr[Math.floor((arr.length - 1) * 0.75)];
-    return [arr[0], q1, mid, q3, arr[arr.length - 1]];
+    // 复制一份数组进行排序，以免影响原数组顺序（虽然这里是基本类型，但好习惯）
+    const sortedArr = [...arr].sort((a, b) => a - b);
+    const q1 = sortedArr[Math.floor((sortedArr.length - 1) * 0.25)];
+    const mid = sortedArr[Math.floor((sortedArr.length - 1) * 0.5)];
+    const q3 = sortedArr[Math.floor((sortedArr.length - 1) * 0.75)];
+    return [sortedArr[0], q1, mid, q3, sortedArr[sortedArr.length - 1]];
   }
 
   function drawChart(mmrMap, wlMap) {
     const dates = [...mmrMap.keys()].sort();
 
     const boxData = [];
-    const avgLine = [];
+    const endOfDayLine = []; // 变量名改为 endOfDayLine
     const winsData = [];
     const lossesData = [];
 
     dates.forEach(d => {
       const arr = mmrMap.get(d);
       boxData.push(calcBox(arr));
-      avgLine.push(Math.round(arr.reduce((a,b) => a + b, 0) / arr.length));
+      
+      // --- 修改核心逻辑 ---
+      // 原逻辑：求平均值
+      // avgLine.push(Math.round(arr.reduce((a,b) => a + b, 0) / arr.length));
+      
+      // 新逻辑：取当天最后一条数据（因为 rawRecords 已经按时间排序，push 进去的顺序就是时间顺序）
+      endOfDayLine.push(arr[arr.length - 1]);
+      // ------------------
 
       const wl = wlMap.get(d);
       winsData.push(wl.wins);
@@ -315,7 +321,8 @@
       axisPointer: { link: { xAxisIndex: 'all' } },
       legend: {
         top: 30,
-        data: ['箱线图', '平均MMR', '胜', '负'],
+        // 修改图例名称
+        data: ['箱线图', '收官MMR', '胜', '负'],
         textStyle: { color: '#ccc' }
       },
       grid: [
@@ -368,14 +375,16 @@
           itemStyle: { color: '#00bcd4', borderColor: '#008ba3' }
         },
         {
-          name: '平均MMR',
+          // 修改 Series 名称
+          name: '收官MMR',
           type: 'line',
           xAxisIndex: 0,
           yAxisIndex: 0,
-          data: avgLine,
+          data: endOfDayLine, // 使用新数据
           smooth: true,
           lineStyle: { width: 3, color: '#ffeb3b' },
-          symbol: 'none'
+          symbol: 'circle', // 改为 circle 可以看到具体的点
+          symbolSize: 6
         },
         {
           name: '胜',
@@ -408,6 +417,3 @@
 
 </body>
 </html>
-
-
-
