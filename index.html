@@ -453,7 +453,7 @@
   };
   const OPEN_DOTA_API = "https://api.opendota.com/api";
   const STEAM_ID64_BASE = 76561197960265728n;
-  const STEAM_ID_STORAGE_KEY = "dota2-mmr-tracker-steam-id";
+  const DEFAULT_STEAM_ID = "136659418";
 
   const steamForm = document.getElementById("steam-form");
   const steamIdInput = document.getElementById("steam-id-input");
@@ -729,7 +729,6 @@
 
       heroGrid.replaceChildren(...cards.map(renderHeroCard));
       heroStatus.textContent = `Account ID ${accountId} · 已加载 ${cards.length} 个英雄，点击胜负方块可查看对局详情。`;
-      localStorage.setItem(STEAM_ID_STORAGE_KEY, String(steamId).trim());
     } catch (error) {
       heroStatus.className = "hero-status error";
       heroStatus.textContent = error.message || "英雄数据获取失败，请稍后重试";
@@ -745,7 +744,7 @@
   });
 
   const initialSteamId = new URLSearchParams(window.location.search).get("steamid")
-    || localStorage.getItem(STEAM_ID_STORAGE_KEY);
+    || DEFAULT_STEAM_ID;
   if (initialSteamId) {
     steamIdInput.value = initialSteamId;
     loadHeroOverview(initialSteamId);
