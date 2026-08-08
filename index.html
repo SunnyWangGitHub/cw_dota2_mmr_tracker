@@ -260,7 +260,7 @@
     .hero-card-body { position: relative; padding: 15px; }
     .hero-name-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
     .hero-name { margin: 0; color: #fff; font-size: 18px; letter-spacing: -0.02em; }
-    .hero-career-rate { padding: 5px 8px; border-radius: 999px; color: #91e1d2; background: rgba(98, 209, 189, 0.075); font-size: 11px; font-weight: 800; white-space: nowrap; }
+    .hero-recent-rate { padding: 5px 8px; border-radius: 999px; color: #91e1d2; background: rgba(98, 209, 189, 0.075); font-size: 11px; font-weight: 800; white-space: nowrap; }
     .hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 13px 0 15px; }
     .hero-stat { padding: 9px 6px; border: 1px solid rgba(255, 255, 255, 0.035); border-radius: 10px; background: rgba(255, 255, 255, 0.025); text-align: center; }
     .hero-stat strong { display: block; color: #f2f3f4; font-size: 15px; }
@@ -394,9 +394,9 @@
     <section class="hero-section" aria-labelledby="hero-section-title">
       <div class="hero-section-head">
         <div>
-          <p class="section-kicker">Signature heroes</p>
-          <h2 class="hero-section-title" id="hero-section-title">常用英雄 · 最佳 5 人组</h2>
-          <p class="hero-section-copy">从最常玩的 12 个英雄中按生涯胜率选出 5 个，并查看各英雄最近 10 把战绩。</p>
+          <p class="section-kicker">Recent hero pool</p>
+          <h2 class="hero-section-title" id="hero-section-title">最近常用英雄</h2>
+          <p class="hero-section-copy">统计最近 30 把中出场次数最多的 5 个英雄，并展示每个英雄最近 10 把的胜负记录。</p>
         </div>
         <form class="steam-form" id="steam-form">
           <input
@@ -567,16 +567,29 @@
     return response.json();
   }
 
-  function pickBestFrequentHeroes(heroes) {
-    const frequentPool = heroes
-      .filter(hero => Number(hero.hero_id) > 0 && Number(hero.games) > 0)
-      .sort((a, b) => Number(b.games) - Number(a.games))
-      .slice(0, 12);
+  function pickMostPlayedRecentHeroes(matches) {
+    const heroCounts = new Map();
 
-    return frequentPool
+    matches.slice(0, 30).forEach((match, index) => {
+      const heroId = Number(match.hero_id);
+      if (heroId <= 0) return;
+
+      if (!heroCounts.has(heroId)) {
+        heroCounts.set(heroId, {
+          hero_id: heroId,
+          appearances: 0,
+          firstSeen: index
+        });
+      }
+
+      const hero = heroCounts.get(heroId);
+      hero.appearances += 1;
+    });
+
+    return [...heroCounts.values()]
       .sort((a, b) => {
-        const rateDiff = (Number(b.win) / Number(b.games)) - (Number(a.win) / Number(a.games));
-        return rateDiff || Number(b.games) - Number(a.games);
+        return b.appearances - a.appearances
+          || a.firstSeen - b.firstSeen;
       })
       .slice(0, 5);
   }
@@ -627,7 +640,7 @@
 
     const order = document.createElement("span");
     order.className = "hero-order";
-    order.textContent = `推荐 #${index + 1}`;
+    order.textContent = `常用 #${index + 1}`;
     banner.append(image, order);
 
     const body = document.createElement("div");
@@ -638,22 +651,25 @@
     const name = document.createElement("h3");
     name.className = "hero-name";
     name.textContent = hero.name;
-    const careerRate = document.createElement("span");
-    careerRate.className = "hero-career-rate";
-    careerRate.textContent = `生涯 ${hero.careerWinRate}%`;
-    nameRow.append(name, careerRate);
+    const recentWins = hero.matches.filter(match => didPlayerWin(match) === true).length;
+    const recentLosses = hero.matches.filter(match => didPlayerWin(match) === false).length;
+    const recentRate = hero.matches.length > 0
+      ? (recentWins / hero.matches.length * 100).toFixed(1)
+      : "--";
+    const recentRateBadge = document.createElement("span");
+    recentRateBadge.className = "hero-recent-rate";
+    recentRateBadge.textContent = `近10 ${recentRate}%`;
+    nameRow.append(name, recentRateBadge);
 
     const stats = document.createElement("div");
     stats.className = "hero-stats";
-    appendHeroStat(stats, hero.games, "总场次");
-    appendHeroStat(stats, hero.wins, "胜场");
-    appendHeroStat(stats, hero.losses, "负场");
+    appendHeroStat(stats, hero.appearancesInLast30, "近30出场");
+    appendHeroStat(stats, recentWins, "近10胜场");
+    appendHeroStat(stats, recentLosses, "近10负场");
 
-    const recentWins = hero.matches.filter(match => didPlayerWin(match) === true).length;
-    const recentLosses = hero.matches.filter(match => didPlayerWin(match) === false).length;
     const recentLabel = document.createElement("div");
     recentLabel.className = "recent-label";
-    recentLabel.innerHTML = `<span>最近 ${hero.matches.length} 把</span><strong>${recentWins} 胜 · ${recentLosses} 负</strong>`;
+    recentLabel.innerHTML = `<span>该英雄最近 ${hero.matches.length} 把</span><strong>${recentWins} 胜 · ${recentLosses} 负</strong>`;
 
     const results = document.createElement("div");
     results.className = "match-results";
@@ -692,14 +708,14 @@
 
     try {
       const accountId = toAccountId(steamId);
-      const [playedHeroes, heroCatalog] = await Promise.all([
-        fetchOpenDota(`/players/${accountId}/heroes`),
+      const [recentMatches, heroCatalog] = await Promise.all([
+        fetchOpenDota(`/players/${accountId}/matches?limit=30`),
         fetchOpenDota("/heroStats")
       ]);
 
-      const selectedHeroes = pickBestFrequentHeroes(playedHeroes);
+      const selectedHeroes = pickMostPlayedRecentHeroes(recentMatches);
       if (selectedHeroes.length === 0) {
-        throw new Error("没有读取到公开英雄数据，请确认比赛记录为公开状态");
+        throw new Error("没有读取到最近比赛，请确认比赛记录为公开状态");
       }
 
       const heroInfoMap = new Map(heroCatalog.map(hero => [Number(hero.id), hero]));
@@ -712,23 +728,18 @@
       }));
 
       const cards = selectedHeroes.map((hero, index) => {
-        const games = Number(hero.games);
-        const wins = Number(hero.win);
         const info = heroInfoMap.get(Number(hero.hero_id));
 
         return {
           info,
           name: info?.localized_name || `英雄 ${hero.hero_id}`,
-          games,
-          wins,
-          losses: games - wins,
-          careerWinRate: (wins / games * 100).toFixed(1),
+          appearancesInLast30: hero.appearances,
           matches: matchGroups[index].slice(0, 10)
         };
       });
 
       heroGrid.replaceChildren(...cards.map(renderHeroCard));
-      heroStatus.textContent = `Account ID ${accountId} · 已加载 ${cards.length} 个英雄，点击胜负方块可查看对局详情。`;
+      heroStatus.textContent = `Account ID ${accountId} · 已统计最近 ${Math.min(recentMatches.length, 30)} 把中的 ${cards.length} 个常用英雄，点击胜负方块可查看对局详情。`;
     } catch (error) {
       heroStatus.className = "hero-status error";
       heroStatus.textContent = error.message || "英雄数据获取失败，请稍后重试";
