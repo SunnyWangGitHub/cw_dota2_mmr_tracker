@@ -1,90 +1,422 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="theme-color" content="#080a0d">
+  <meta name="description" content="Dota 2 MMR 段位进度、趋势与常用英雄追踪面板。">
   <title>Dota2 MMR Tracker</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; background: #1c1e21; color: #e4e6eb; }
-    h1 { text-align: center; margin-bottom: 10px; font-size: 24px; color: #fff; }
-
-    .container { max-width: 1000px; margin: 0 auto; background: #242526; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-
-    /* 段位展示区域 */
-    .rank-display {
-      text-align: center;
-      margin-bottom: 20px;
-      padding: 15px;
-      background: #3a3b3c;
-      border-radius: 8px;
-      border: 1px solid #4e4f50;
+    :root {
+      color-scheme: dark;
+      --bg: #080a0d;
+      --panel: rgba(19, 22, 27, 0.9);
+      --panel-strong: #171a1f;
+      --panel-soft: #20242a;
+      --line: rgba(255, 255, 255, 0.075);
+      --line-strong: rgba(226, 181, 94, 0.22);
+      --text: #f3f4f5;
+      --muted: #9299a2;
+      --faint: #656c75;
+      --gold: #e1b45f;
+      --gold-bright: #f4d58d;
+      --teal: #62d1bd;
+      --green: #55bf83;
+      --red: #df6a73;
+      --shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
     }
-    .rank-title { font-size: 14px; color: #b0b3b8; margin-bottom: 5px; }
-    .rank-name { font-size: 28px; font-weight: bold; background: linear-gradient(45deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .rank-mmr { font-size: 18px; color: #fff; margin-top: 5px; }
 
-    /* 目标计算器样式 */
-    .goal-calculator {
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 1px solid #4e4f50;
+    * { box-sizing: border-box; }
+
+    html { min-width: 320px; background: var(--bg); }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at 14% 0%, rgba(209, 78, 65, 0.14), transparent 28%),
+        radial-gradient(circle at 86% 8%, rgba(98, 209, 189, 0.09), transparent 24%),
+        linear-gradient(180deg, #0d1014 0%, #080a0d 44%, #0a0c0f 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      opacity: 0.22;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+      background-size: 42px 42px;
+      -webkit-mask-image: linear-gradient(to bottom, black, transparent 72%);
+      mask-image: linear-gradient(to bottom, black, transparent 72%);
+    }
+
+    button,
+    input { font: inherit; }
+
+    button {
+      min-height: 50px;
+      padding: 0 20px;
+      border: 1px solid rgba(244, 213, 141, 0.28);
+      border-radius: 12px;
+      color: #17120a;
+      background: linear-gradient(135deg, var(--gold-bright), #c9933e);
+      box-shadow: 0 10px 24px rgba(194, 135, 48, 0.18);
+      cursor: pointer;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    }
+
+    button:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 14px 30px rgba(194, 135, 48, 0.24); }
+    button:active { transform: translateY(0); }
+    button:disabled { opacity: 0.52; cursor: wait; transform: none; filter: grayscale(0.35); }
+
+    input {
+      min-height: 50px;
+      width: 100%;
+      padding: 0 15px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      outline: none;
+      color: var(--text);
+      background: rgba(6, 8, 11, 0.7);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    input::placeholder { color: #616872; }
+    input:focus { border-color: rgba(225, 180, 95, 0.55); background: rgba(9, 11, 14, 0.92); box-shadow: 0 0 0 4px rgba(225, 180, 95, 0.09); }
+    button:focus-visible,
+    input:focus-visible,
+    a:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
+
+    .container { width: min(1160px, calc(100% - 40px)); margin: 0 auto; padding: 34px 0 48px; }
+
+    .app-header {
       display: flex;
-      justify-content: space-around;
-      flex-wrap: wrap;
-      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 28px;
+      margin-bottom: 24px;
+      padding: 8px 4px;
     }
+
+    .brand-lockup { display: flex; align-items: center; gap: 18px; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 64px;
+      height: 64px;
+      flex: 0 0 auto;
+      border: 1px solid rgba(225, 180, 95, 0.28);
+      border-radius: 18px;
+      color: var(--gold-bright);
+      background:
+        linear-gradient(135deg, rgba(218, 75, 61, 0.26), transparent 52%),
+        #15181d;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 14px 34px rgba(0, 0, 0, 0.3);
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.08em;
+      transform: rotate(-3deg);
+    }
+
+    .eyebrow,
+    .section-kicker {
+      margin: 0 0 6px;
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 { margin: 0; color: #fff; font-size: clamp(27px, 4vw, 40px); line-height: 1.05; letter-spacing: -0.035em; }
+    h1 span { color: var(--muted); font-weight: 500; }
+    .app-subtitle { margin: 7px 0 0; color: var(--muted); font-size: 14px; }
+    .live-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      padding: 9px 12px;
+      border: 1px solid rgba(98, 209, 189, 0.16);
+      border-radius: 999px;
+      color: #a7d9d0;
+      background: rgba(98, 209, 189, 0.055);
+      font-size: 12px;
+    }
+    .live-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 5px rgba(98, 209, 189, 0.09); }
+
+    main { display: grid; gap: 18px; }
+
+    .rank-display,
+    .record-panel,
+    .chart-panel,
+    .hero-section {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .rank-display { padding: 24px; }
+    .rank-display::before {
+      content: "";
+      position: absolute;
+      width: 360px;
+      height: 360px;
+      top: -240px;
+      left: -80px;
+      border-radius: 50%;
+      background: rgba(225, 180, 95, 0.12);
+      filter: blur(10px);
+      pointer-events: none;
+    }
+
+    .panel-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; margin-bottom: 18px; }
+    .panel-heading h2,
+    .hero-section-title { margin: 0; color: #fff; font-size: 21px; letter-spacing: -0.02em; }
+    .panel-copy,
+    .hero-section-copy { max-width: 520px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+
+    .rank-layout { display: grid; grid-template-columns: 0.75fr 2fr; gap: 14px; }
+    .rank-summary {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 192px;
+      padding: 22px;
+      border: 1px solid var(--line-strong);
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 25% 20%, rgba(225, 180, 95, 0.14), transparent 42%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012));
+    }
+    .rank-medal { width: 108px; height: 108px; flex: 0 0 auto; object-fit: contain; filter: drop-shadow(0 15px 18px rgba(0, 0, 0, 0.46)); }
+    .rank-copy { min-width: 0; }
+    .rank-title { margin-bottom: 7px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }
+    .rank-name { color: var(--gold-bright); font-size: clamp(24px, 3vw, 32px); font-weight: 850; line-height: 1.15; text-shadow: 0 8px 24px rgba(225, 180, 95, 0.14); }
+    .rank-mmr { margin-top: 9px; color: #fff; font-size: 17px; font-weight: 750; }
+
+    .goal-calculator { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .goal-item {
-      background: #242526;
-      padding: 10px 15px;
-      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      padding: 16px 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
       text-align: center;
-      flex: 1;
-      min-width: 120px;
-      border: 1px solid #4e4f50;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.036), rgba(255, 255, 255, 0.012));
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
     }
-    .goal-name { font-size: 14px; color: #b0b3b8; margin-bottom: 5px; }
-    .goal-diff { font-size: 16px; font-weight: bold; color: #4caf50; }
-    .goal-games { font-size: 12px; color: #999; margin-top: 4px; }
-    .goal-games span { color: #fff; font-weight: bold; }
-    .goal-done { color: #4caf50; font-weight: bold; }
+    .goal-item:hover { transform: translateY(-3px); border-color: rgba(225, 180, 95, 0.2); background: rgba(255, 255, 255, 0.045); }
+    .goal-item.is-complete { border-color: rgba(85, 191, 131, 0.2); background: rgba(85, 191, 131, 0.045); }
+    .goal-logo { width: 78px; height: 78px; object-fit: contain; margin: -3px auto 7px; filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.38)); transition: transform 0.22s ease; }
+    .goal-item:hover .goal-logo { transform: translateY(-2px) scale(1.04); }
+    .goal-name { min-height: 34px; margin-bottom: 5px; color: #aeb3b9; font-size: 12px; line-height: 1.45; }
+    .goal-diff { color: var(--gold-bright); font-size: 16px; font-weight: 850; }
+    .goal-games { margin-top: 5px; color: var(--faint); font-size: 11px; }
+    .goal-games span { color: #e2e5e8; font-weight: 750; }
+    .goal-done { color: #76d09a; font-size: 14px; font-weight: 800; }
 
-    .input-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #3e4042; }
-    input, button { padding: 10px 15px; font-size: 16px; border: 1px solid #3e4042; border-radius: 6px; outline: none; background: #18191a; color: white; }
-    input:focus { border-color: #2e7d32; }
-    button { background: #2e7d32; color: white; border: none; cursor: pointer; font-weight: bold; transition: background 0.2s; }
-    button:hover { background: #1b5e20; }
-    button:disabled { background: #555; cursor: not-allowed; }
+    .record-panel { display: grid; grid-template-columns: minmax(220px, 0.75fr) 2fr; align-items: end; gap: 24px; padding: 22px 24px; }
+    .record-panel .panel-heading { display: block; margin: 0; }
+    .input-group { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 10px; }
+    .field { display: grid; gap: 7px; }
+    .field span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
+    .loading { display: none; margin: 0; padding: 10px 14px; border-radius: 10px; color: #c5b27f; background: rgba(225, 180, 95, 0.06); text-align: center; font-size: 13px; }
 
-    #chart { width: 100%; height: 600px; }
-    .loading { text-align: center; color: #b0b3b8; display: none; }
+    .chart-panel { padding: 8px; }
+    #chart { width: 100%; height: 620px; overflow: hidden; border-radius: 17px; background: radial-gradient(circle at 16% 0%, rgba(225, 180, 95, 0.055), transparent 32%), rgba(8, 10, 13, 0.28); }
+
+    .hero-section { padding: 24px; }
+    .hero-section::before { content: ""; position: absolute; width: 330px; height: 330px; right: -190px; top: -230px; border-radius: 50%; background: rgba(98, 209, 189, 0.1); filter: blur(10px); pointer-events: none; }
+    .hero-section-head { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 15px; }
+    .steam-form { display: flex; gap: 8px; width: min(100%, 430px); }
+    .steam-form input { flex: 1; min-width: 0; }
+    .steam-form button { flex: 0 0 auto; white-space: nowrap; }
+    .hero-status { position: relative; display: inline-flex; min-height: 30px; align-items: center; margin: 0 0 16px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; color: #aeb3b9; background: rgba(255, 255, 255, 0.025); font-size: 11px; }
+    .hero-status.error { color: #ff9ca3; border-color: rgba(223, 106, 115, 0.22); background: rgba(223, 106, 115, 0.06); }
+    .hero-grid { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 13px; }
+    .hero-card { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(180deg, #20242a, #191c21); box-shadow: 0 13px 30px rgba(0, 0, 0, 0.25); transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease; }
+    .hero-card:hover { transform: translateY(-3px); border-color: rgba(225, 180, 95, 0.19); box-shadow: 0 19px 38px rgba(0, 0, 0, 0.32); }
+    .hero-banner { position: relative; height: 148px; overflow: hidden; background: #111318; }
+    .hero-banner::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 22%, rgba(18, 20, 24, 0.18) 52%, #20242a 100%); pointer-events: none; }
+    .hero-image { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+    .hero-card:hover .hero-image { transform: scale(1.045); }
+    .hero-order { position: absolute; z-index: 1; top: 12px; left: 12px; padding: 6px 9px; border: 1px solid rgba(244, 213, 141, 0.28); border-radius: 999px; color: var(--gold-bright); background: rgba(10, 12, 15, 0.78); backdrop-filter: blur(8px); font-size: 10px; font-weight: 850; letter-spacing: 0.04em; }
+    .hero-card-body { position: relative; padding: 15px; }
+    .hero-name-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .hero-name { margin: 0; color: #fff; font-size: 18px; letter-spacing: -0.02em; }
+    .hero-career-rate { padding: 5px 8px; border-radius: 999px; color: #91e1d2; background: rgba(98, 209, 189, 0.075); font-size: 11px; font-weight: 800; white-space: nowrap; }
+    .hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 13px 0 15px; }
+    .hero-stat { padding: 9px 6px; border: 1px solid rgba(255, 255, 255, 0.035); border-radius: 10px; background: rgba(255, 255, 255, 0.025); text-align: center; }
+    .hero-stat strong { display: block; color: #f2f3f4; font-size: 15px; }
+    .hero-stat span { display: block; margin-top: 3px; color: #727983; font-size: 9px; letter-spacing: 0.04em; }
+    .recent-label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 9px; color: #838a93; font-size: 10px; }
+    .recent-label strong { color: #dfe2e5; }
+    .match-results { display: grid; grid-template-columns: repeat(10, minmax(20px, 1fr)); gap: 4px; }
+    .match-result { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid rgba(255, 255, 255, 0.045); border-radius: 6px; color: #fff; font-size: 9px; font-weight: 850; text-decoration: none; transition: transform 0.15s ease, filter 0.15s ease; }
+    .match-result:hover { transform: translateY(-2px); filter: brightness(1.14); }
+    .match-result.win { background: linear-gradient(145deg, #398f63, #28744f); }
+    .match-result.loss { background: linear-gradient(145deg, #aa4f58, #873b43); }
+    .match-result.empty { color: #5e646b; background: #30343a; pointer-events: none; }
+
+    .app-footer { padding: 8px 4px 0; color: #545b64; text-align: center; font-size: 11px; }
+
+    @media (max-width: 900px) {
+      .rank-layout { grid-template-columns: 1fr; }
+      .rank-summary { justify-content: center; }
+      .record-panel { grid-template-columns: 1fr; align-items: stretch; gap: 16px; }
+    }
+
+    @media (max-width: 680px) {
+      .container { width: min(100% - 20px, 1160px); padding: 20px 0 34px; }
+      .app-header { align-items: flex-start; flex-direction: column; gap: 16px; }
+      .brand-mark { width: 54px; height: 54px; border-radius: 15px; font-size: 19px; }
+      .app-subtitle { line-height: 1.55; }
+      .live-chip { margin-left: 72px; }
+      .rank-display,
+      .record-panel,
+      .hero-section { padding: 17px; border-radius: 18px; }
+      .panel-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
+      .rank-summary { justify-content: flex-start; min-height: 150px; padding: 16px; }
+      .rank-medal { width: 88px; height: 88px; }
+      .goal-calculator { grid-template-columns: 1fr; }
+      .goal-item { display: grid; grid-template-columns: 78px 1fr; grid-template-rows: repeat(3, auto); column-gap: 12px; min-height: 112px; text-align: left; }
+      .goal-item > :not(.goal-logo) { grid-column: 2; }
+      .goal-logo { grid-row: 1 / 6; margin: 0; }
+      .goal-name { min-height: 0; margin: 0; }
+      .input-group { grid-template-columns: 1fr; }
+      .input-group button { width: 100%; }
+      #chart { height: 550px; }
+      .hero-section-head { align-items: stretch; flex-direction: column; gap: 16px; }
+      .steam-form { width: 100%; }
+      .hero-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 420px) {
+      .brand-lockup { align-items: flex-start; gap: 13px; }
+      .live-chip { margin-left: 0; }
+      h1 { font-size: 25px; }
+      .rank-summary { align-items: center; }
+      .rank-medal { width: 78px; height: 78px; }
+      .rank-name { font-size: 22px; }
+      .steam-form { display: grid; }
+      .steam-form button { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+    }
   </style>
 </head>
 
 <body>
 
 <div class="container">
-  <h1>⚔️ Dota2 MMR Tracker</h1>
-
-  <!-- 段位展示 -->
-  <div class="rank-display">
-    <div class="rank-title">当前段位 (Season 4)</div>
-    <div class="rank-name" id="current-rank">暂无数据</div>
-    <div class="rank-mmr" id="current-mmr">--</div>
-
-    <!-- 目标计算器 -->
-    <div class="goal-calculator" id="goal-calc">
-      <!-- 这里的内容会由 JS 动态生成 -->
+  <header class="app-header">
+    <div class="brand-lockup">
+      <div class="brand-mark" aria-hidden="true">D2</div>
+      <div>
+        <p class="eyebrow">Ranked progression hub</p>
+        <h1>Dota 2 <span>MMR Tracker</span></h1>
+        <p class="app-subtitle">记录每一次上分，清楚看见距离下个段位还有多远。</p>
+      </div>
     </div>
-  </div>
+    <div class="live-chip">云端实时同步</div>
+  </header>
 
-  <div class="input-group">
-    <input type="date" id="date-picker">
-    <input type="number" id="mmr-input" placeholder="输入当前 MMR">
-    <button id="save-btn">💾 记录战绩</button>
-  </div>
+  <main>
+    <section class="rank-display" aria-labelledby="rank-overview-title">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Rank overview</p>
+          <h2 id="rank-overview-title">段位进度</h2>
+        </div>
+        <p class="panel-copy">当前实力与三个关键目标一屏掌握，按 +25 和 +50 MMR 估算所需胜场。</p>
+      </div>
 
-  <p id="loading-text" class="loading">正在同步云端数据...</p>
-  <div id="chart"></div>
+      <div class="rank-layout">
+        <div class="rank-summary">
+          <img class="rank-medal" id="current-rank-logo" alt="" hidden>
+          <div class="rank-copy">
+            <div class="rank-title">当前段位</div>
+            <div class="rank-name" id="current-rank">暂无数据</div>
+            <div class="rank-mmr" id="current-mmr">--</div>
+          </div>
+        </div>
+
+        <div class="goal-calculator" id="goal-calc">
+          <!-- 这里的内容会由 JS 动态生成 -->
+        </div>
+      </div>
+    </section>
+
+    <section class="record-panel" aria-labelledby="record-title">
+      <div class="panel-heading">
+        <p class="section-kicker">MMR log</p>
+        <h2 id="record-title">记录新分数</h2>
+        <p class="panel-copy">写入后会自动同步趋势图和段位目标。</p>
+      </div>
+
+      <div class="input-group">
+        <label class="field">
+          <span>记录日期</span>
+          <input type="date" id="date-picker">
+        </label>
+        <label class="field">
+          <span>当前 MMR</span>
+          <input type="number" id="mmr-input" placeholder="例如 2480">
+        </label>
+        <button id="save-btn">记录 MMR</button>
+      </div>
+    </section>
+
+    <p id="loading-text" class="loading" aria-live="polite">正在同步云端数据...</p>
+
+    <section class="chart-panel" aria-label="MMR 趋势图">
+      <div id="chart"></div>
+    </section>
+
+    <section class="hero-section" aria-labelledby="hero-section-title">
+      <div class="hero-section-head">
+        <div>
+          <p class="section-kicker">Signature heroes</p>
+          <h2 class="hero-section-title" id="hero-section-title">常用英雄 · 最佳 5 人组</h2>
+          <p class="hero-section-copy">从最常玩的 12 个英雄中按生涯胜率选出 5 个，并查看各英雄最近 10 把战绩。</p>
+        </div>
+        <form class="steam-form" id="steam-form">
+          <input
+            type="text"
+            id="steam-id-input"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="Account ID 或 SteamID64"
+            aria-label="Steam Account ID 或 SteamID64"
+            required
+          >
+          <button type="submit" id="load-heroes-btn">获取英雄</button>
+        </form>
+      </div>
+      <p class="hero-status" id="hero-status" aria-live="polite">输入数字格式的 Account ID 或 SteamID64 开始查询。</p>
+      <div class="hero-grid" id="hero-grid"></div>
+    </section>
+  </main>
+
+  <footer class="app-footer">MMR 记录由 Firebase 同步 · 英雄与对局数据来自 OpenDota</footer>
 </div>
 
 <!-- ECharts -->
@@ -114,6 +446,20 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const mmrCol = collection(db, "mmrHistory");
+  const RANK_LOGOS = {
+    archon: "assets/ranks/archon.png",
+    legend: "assets/ranks/legend.png",
+    ancient: "assets/ranks/ancient.png"
+  };
+  const OPEN_DOTA_API = "https://api.opendota.com/api";
+  const STEAM_ID64_BASE = 76561197960265728n;
+  const STEAM_ID_STORAGE_KEY = "dota2-mmr-tracker-steam-id";
+
+  const steamForm = document.getElementById("steam-form");
+  const steamIdInput = document.getElementById("steam-id-input");
+  const loadHeroesBtn = document.getElementById("load-heroes-btn");
+  const heroStatus = document.getElementById("hero-status");
+  const heroGrid = document.getElementById("hero-grid");
 
   document.getElementById("date-picker").valueAsDate = new Date();
 
@@ -122,9 +468,9 @@
     if (mmr < 770) return { name: "Herald (先锋)", stars: getStars(mmr, 0) };
     if (mmr < 1540) return { name: "Guardian (卫士)", stars: getStars(mmr, 770) };
     if (mmr < 2310) return { name: "Crusader (中军)", stars: getStars(mmr, 1540) };
-    if (mmr < 3080) return { name: "Archon (统帅)", stars: getStars(mmr, 2310) };
-    if (mmr < 3850) return { name: "Legend (传奇)", stars: getStars(mmr, 3080) };
-    if (mmr < 4620) return { name: "Ancient (万古)", stars: getStars(mmr, 3850) };
+    if (mmr < 3080) return { name: "Archon (统帅)", stars: getStars(mmr, 2310), logo: RANK_LOGOS.archon };
+    if (mmr < 3850) return { name: "Legend (传奇)", stars: getStars(mmr, 3080), logo: RANK_LOGOS.legend };
+    if (mmr < 4620) return { name: "Ancient (万古流芳)", stars: getStars(mmr, 3850), logo: RANK_LOGOS.ancient };
     return { name: "Divine (超凡)", stars: getStars(mmr, 4620) };
   }
 
@@ -137,8 +483,9 @@
   // --- 更新目标计算器 ---
   function updateGoals(currentMMR) {
     const goals = [
-      { name: "Archon (统帅)", target: 2310 },
-      { name: "Legend (传奇)", target: 3080 }
+      { name: "Archon (统帅)", target: 2310, logo: RANK_LOGOS.archon },
+      { name: "Legend (传奇)", target: 3080, logo: RANK_LOGOS.legend },
+      { name: "Ancient (万古流芳)", target: 3850, logo: RANK_LOGOS.ancient }
     ];
 
     const container = document.getElementById("goal-calc");
@@ -150,7 +497,9 @@
       div.className = "goal-item";
 
       if (diff <= 0) {
+        div.classList.add("is-complete");
         div.innerHTML = `
+          <img class="goal-logo" src="${goal.logo}" alt="${goal.name}段位徽章">
           <div class="goal-name">目标：${goal.name}</div>
           <div class="goal-done">✅ 已达成</div>
         `;
@@ -158,6 +507,7 @@
         const normalGames = Math.ceil(diff / 25);
         const doubleGames = Math.ceil(diff / 50);
         div.innerHTML = `
+          <img class="goal-logo" src="${goal.logo}" alt="${goal.name}段位徽章">
           <div class="goal-name">距离 ${goal.name}</div>
           <div class="goal-diff">还差 ${diff} 分</div>
           <div class="goal-games">普通(+25): <span>${normalGames}</span> 场</div>
@@ -171,9 +521,234 @@
   function updateRankDisplay(mmr) {
     const medal = calculateMedal(mmr);
     const starStr = "★".repeat(medal.stars);
+    const rankLogo = document.getElementById("current-rank-logo");
+
+    if (medal.logo) {
+      rankLogo.src = medal.logo;
+      rankLogo.alt = `${medal.name}段位徽章`;
+      rankLogo.hidden = false;
+    } else {
+      rankLogo.removeAttribute("src");
+      rankLogo.alt = "";
+      rankLogo.hidden = true;
+    }
+
     document.getElementById("current-rank").innerText = `${medal.name} ${starStr}`;
     document.getElementById("current-mmr").innerText = `${mmr} MMR`;
     updateGoals(mmr);
+  }
+
+  // --- OpenDota 常用英雄 ---
+  function toAccountId(steamId) {
+    const value = String(steamId).trim();
+
+    if (!/^\d+$/.test(value)) {
+      throw new Error("请输入数字格式的 Account ID 或 SteamID64");
+    }
+
+    let accountId = BigInt(value);
+    if (accountId >= STEAM_ID64_BASE) accountId -= STEAM_ID64_BASE;
+
+    if (accountId <= 0n || accountId > 4294967295n) {
+      throw new Error("SteamID 无效，请检查后重试");
+    }
+
+    return accountId.toString();
+  }
+
+  async function fetchOpenDota(path) {
+    const response = await fetch(`${OPEN_DOTA_API}${path}`);
+
+    if (!response.ok) {
+      if (response.status === 429) throw new Error("OpenDota 请求过于频繁，请稍后再试");
+      throw new Error(`OpenDota 暂时不可用（${response.status}）`);
+    }
+
+    return response.json();
+  }
+
+  function pickBestFrequentHeroes(heroes) {
+    const frequentPool = heroes
+      .filter(hero => Number(hero.hero_id) > 0 && Number(hero.games) > 0)
+      .sort((a, b) => Number(b.games) - Number(a.games))
+      .slice(0, 12);
+
+    return frequentPool
+      .sort((a, b) => {
+        const rateDiff = (Number(b.win) / Number(b.games)) - (Number(a.win) / Number(a.games));
+        return rateDiff || Number(b.games) - Number(a.games);
+      })
+      .slice(0, 5);
+  }
+
+  function didPlayerWin(match) {
+    if (typeof match.radiant_win !== "boolean" || match.player_slot == null) return null;
+    const isRadiant = Number(match.player_slot) < 128;
+    return isRadiant === match.radiant_win;
+  }
+
+  function formatMatchDate(timestamp) {
+    if (!timestamp) return "日期未知";
+    return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" })
+      .format(new Date(Number(timestamp) * 1000));
+  }
+
+  function getHeroImageUrl(heroInfo) {
+    const imagePath = String(heroInfo?.img || "").split("?")[0];
+    if (!imagePath.startsWith("/apps/dota2/")) return "";
+    return `https://cdn.cloudflare.steamstatic.com${imagePath}`;
+  }
+
+  function appendHeroStat(container, value, label) {
+    const stat = document.createElement("div");
+    stat.className = "hero-stat";
+
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    const span = document.createElement("span");
+    span.textContent = label;
+
+    stat.append(strong, span);
+    container.appendChild(stat);
+  }
+
+  function renderHeroCard(hero, index) {
+    const card = document.createElement("article");
+    card.className = "hero-card";
+
+    const banner = document.createElement("div");
+    banner.className = "hero-banner";
+
+    const image = document.createElement("img");
+    image.className = "hero-image";
+    image.src = getHeroImageUrl(hero.info);
+    image.alt = `${hero.name}英雄头像`;
+    image.loading = "lazy";
+
+    const order = document.createElement("span");
+    order.className = "hero-order";
+    order.textContent = `推荐 #${index + 1}`;
+    banner.append(image, order);
+
+    const body = document.createElement("div");
+    body.className = "hero-card-body";
+
+    const nameRow = document.createElement("div");
+    nameRow.className = "hero-name-row";
+    const name = document.createElement("h3");
+    name.className = "hero-name";
+    name.textContent = hero.name;
+    const careerRate = document.createElement("span");
+    careerRate.className = "hero-career-rate";
+    careerRate.textContent = `生涯 ${hero.careerWinRate}%`;
+    nameRow.append(name, careerRate);
+
+    const stats = document.createElement("div");
+    stats.className = "hero-stats";
+    appendHeroStat(stats, hero.games, "总场次");
+    appendHeroStat(stats, hero.wins, "胜场");
+    appendHeroStat(stats, hero.losses, "负场");
+
+    const recentWins = hero.matches.filter(match => didPlayerWin(match) === true).length;
+    const recentLosses = hero.matches.filter(match => didPlayerWin(match) === false).length;
+    const recentLabel = document.createElement("div");
+    recentLabel.className = "recent-label";
+    recentLabel.innerHTML = `<span>最近 ${hero.matches.length} 把</span><strong>${recentWins} 胜 · ${recentLosses} 负</strong>`;
+
+    const results = document.createElement("div");
+    results.className = "match-results";
+
+    hero.matches.forEach(match => {
+      const won = didPlayerWin(match);
+      const result = document.createElement("a");
+      result.className = `match-result ${won ? "win" : "loss"}`;
+      result.textContent = won ? "胜" : "负";
+      result.href = `https://www.opendota.com/matches/${Number(match.match_id)}`;
+      result.target = "_blank";
+      result.rel = "noreferrer";
+      result.title = `${formatMatchDate(match.start_time)} · ${won ? "胜利" : "失败"} · KDA ${Number(match.kills) || 0}/${Number(match.deaths) || 0}/${Number(match.assists) || 0}`;
+      result.setAttribute("aria-label", result.title);
+      results.appendChild(result);
+    });
+
+    for (let i = hero.matches.length; i < 10; i += 1) {
+      const empty = document.createElement("span");
+      empty.className = "match-result empty";
+      empty.textContent = "—";
+      results.appendChild(empty);
+    }
+
+    body.append(nameRow, stats, recentLabel, results);
+    card.append(banner, body);
+    return card;
+  }
+
+  async function loadHeroOverview(steamId) {
+    loadHeroesBtn.disabled = true;
+    loadHeroesBtn.textContent = "获取中...";
+    heroStatus.className = "hero-status";
+    heroStatus.textContent = "正在读取英雄池与最近战绩...";
+    heroGrid.replaceChildren();
+
+    try {
+      const accountId = toAccountId(steamId);
+      const [playedHeroes, heroCatalog] = await Promise.all([
+        fetchOpenDota(`/players/${accountId}/heroes`),
+        fetchOpenDota("/heroStats")
+      ]);
+
+      const selectedHeroes = pickBestFrequentHeroes(playedHeroes);
+      if (selectedHeroes.length === 0) {
+        throw new Error("没有读取到公开英雄数据，请确认比赛记录为公开状态");
+      }
+
+      const heroInfoMap = new Map(heroCatalog.map(hero => [Number(hero.id), hero]));
+      const matchGroups = await Promise.all(selectedHeroes.map(async hero => {
+        try {
+          return await fetchOpenDota(`/players/${accountId}/matches?hero_id=${Number(hero.hero_id)}&limit=10`);
+        } catch (error) {
+          return [];
+        }
+      }));
+
+      const cards = selectedHeroes.map((hero, index) => {
+        const games = Number(hero.games);
+        const wins = Number(hero.win);
+        const info = heroInfoMap.get(Number(hero.hero_id));
+
+        return {
+          info,
+          name: info?.localized_name || `英雄 ${hero.hero_id}`,
+          games,
+          wins,
+          losses: games - wins,
+          careerWinRate: (wins / games * 100).toFixed(1),
+          matches: matchGroups[index].slice(0, 10)
+        };
+      });
+
+      heroGrid.replaceChildren(...cards.map(renderHeroCard));
+      heroStatus.textContent = `Account ID ${accountId} · 已加载 ${cards.length} 个英雄，点击胜负方块可查看对局详情。`;
+      localStorage.setItem(STEAM_ID_STORAGE_KEY, String(steamId).trim());
+    } catch (error) {
+      heroStatus.className = "hero-status error";
+      heroStatus.textContent = error.message || "英雄数据获取失败，请稍后重试";
+    } finally {
+      loadHeroesBtn.disabled = false;
+      loadHeroesBtn.textContent = "获取英雄";
+    }
+  }
+
+  steamForm.addEventListener("submit", event => {
+    event.preventDefault();
+    loadHeroOverview(steamIdInput.value);
+  });
+
+  const initialSteamId = new URLSearchParams(window.location.search).get("steamid")
+    || localStorage.getItem(STEAM_ID_STORAGE_KEY);
+  if (initialSteamId) {
+    steamIdInput.value = initialSteamId;
+    loadHeroOverview(initialSteamId);
   }
 
   // --- 保存逻辑 ---
@@ -202,12 +777,22 @@
       alert("保存失败，请检查 Firebase Rules");
     } finally {
       saveBtn.disabled = false;
-      saveBtn.textContent = "💾 记录战绩";
+      saveBtn.textContent = "记录 MMR";
     }
   });
 
   // --- 数据处理与绘图 ---
   let myChart = null;
+  const EXCLUDED_ANOMALIES = new Set([
+    "0508:96",
+    "0601:209"
+  ]);
+
+  function isExcludedAnomaly(record) {
+    const compactDate = String(record.date).replace(/\D/g, "").slice(-4);
+    return EXCLUDED_ANOMALIES.has(`${compactDate}:${Number(record.mmr)}`);
+  }
+
   document.getElementById("loading-text").style.display = "block";
 
   const q = query(mmrCol);
@@ -229,6 +814,8 @@
         });
       }
     });
+
+    rawRecords = rawRecords.filter(record => !isExcludedAnomaly(record));
 
     if (rawRecords.length === 0) return;
 
@@ -280,6 +867,16 @@
   }
 
   function drawChart(mmrMap, wlMap) {
+    const existingDates = [...mmrMap.keys()].sort();
+    const firstYear = existingDates[0]?.slice(0, 4) || String(new Date().getFullYear());
+    const startingDate = `${firstYear}-01-01`;
+
+    // 补充 01/01 的 200 MMR 起始点，只用于图表展示，不影响段位和胜负统计。
+    if (!mmrMap.has(startingDate)) {
+      mmrMap.set(startingDate, [200]);
+      wlMap.set(startingDate, { wins: 0, losses: 0 });
+    }
+
     const dates = [...mmrMap.keys()].sort();
 
     const boxData = [];
@@ -304,45 +901,84 @@
       lossesData.push(wl.losses);
     });
 
+    const latestDate = dates[dates.length - 1];
+    const latestMMR = endOfDayLine[endOfDayLine.length - 1];
+    const mmrGradient = new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+      { offset: 0, color: '#f6c85f' },
+      { offset: 0.55, color: '#ffe69a' },
+      { offset: 1, color: '#69d8c7' }
+    ]);
+    const mmrAreaGradient = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      { offset: 0, color: 'rgba(246, 200, 95, 0.26)' },
+      { offset: 0.6, color: 'rgba(246, 200, 95, 0.07)' },
+      { offset: 1, color: 'rgba(246, 200, 95, 0)' }
+    ]);
+
     const option = {
-      backgroundColor: '#242526',
+      backgroundColor: 'transparent',
+      animationDuration: 900,
+      animationEasing: 'cubicOut',
       title: {
-        text: 'MMR 趋势 & 每日战况',
-        left: 'center',
-        textStyle: { color: '#fff' }
+        text: 'MMR 趋势',
+        subtext: '每日收官分数 · 01/01 从 200 MMR 起步',
+        left: 24,
+        top: 18,
+        itemGap: 8,
+        textStyle: { color: '#f5f6f7', fontSize: 20, fontWeight: 700 },
+        subtextStyle: { color: '#8e949b', fontSize: 12 }
       },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'cross' },
-        backgroundColor: 'rgba(50,50,50,0.9)',
-        borderColor: '#777',
-        textStyle: { color: '#fff' }
+        axisPointer: {
+          type: 'line',
+          lineStyle: { color: 'rgba(255, 230, 154, 0.5)', type: 'dashed' }
+        },
+        backgroundColor: 'rgba(17, 19, 21, 0.96)',
+        borderColor: 'rgba(255, 230, 154, 0.24)',
+        borderWidth: 1,
+        padding: [10, 12],
+        textStyle: { color: '#f5f6f7' },
+        extraCssText: 'border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.35);'
       },
       axisPointer: { link: { xAxisIndex: 'all' } },
       legend: {
-        top: 30,
-        // 修改图例名称
+        top: 24,
+        right: 24,
         data: ['箱线图', '收官MMR', '胜', '负'],
-        textStyle: { color: '#ccc' }
+        selected: { '箱线图': false },
+        itemWidth: 14,
+        itemHeight: 8,
+        itemGap: 18,
+        textStyle: { color: '#aeb3b8', fontSize: 12 }
       },
       grid: [
-        { left: '5%', right: '5%', height: '55%', top: '15%' },
-        { left: '5%', right: '5%', top: '78%', height: '15%' }
+        { left: 62, right: 90, height: '52%', top: 112 },
+        { left: 62, right: 90, top: '77%', height: '13%' }
       ],
       xAxis: [
         {
           type: 'category',
           data: dates,
           gridIndex: 0,
+          boundaryGap: true,
           axisLabel: { show: false },
-          axisLine: { lineStyle: { color: '#555' } }
+          axisTick: { show: false },
+          axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } }
         },
         {
           type: 'category',
           data: dates,
           gridIndex: 1,
-          axisLabel: { color: '#999', rotate: 45 },
-          axisLine: { lineStyle: { color: '#555' } }
+          boundaryGap: true,
+          axisLabel: {
+            color: '#8e949b',
+            fontSize: 11,
+            margin: 12,
+            hideOverlap: true,
+            formatter: value => value.slice(5).replace('-', '/')
+          },
+          axisTick: { show: false },
+          axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } }
         }
       ],
       yAxis: [
@@ -351,18 +987,33 @@
           name: 'MMR',
           scale: true,
           gridIndex: 0,
-          splitLine: { lineStyle: { color: '#333' } },
-          axisLabel: { color: '#ccc' },
-          nameTextStyle: { color: '#ccc' }
+          splitNumber: 5,
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.065)', type: 'dashed' } },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: '#8e949b', fontSize: 11 },
+          nameTextStyle: { color: '#8e949b', padding: [0, 0, 8, 0] }
         },
         {
           type: 'value',
           name: '场次',
           gridIndex: 1,
           splitLine: { show: false },
-          axisLabel: { color: '#ccc', interval: 0 },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: '#8e949b', interval: 0, fontSize: 11 },
           minInterval: 1,
-          nameTextStyle: { color: '#ccc' }
+          nameTextStyle: { color: '#8e949b', padding: [0, 0, 8, 0] }
+        }
+      ],
+      dataZoom: [
+        {
+          type: 'inside',
+          xAxisIndex: [0, 1],
+          filterMode: 'none',
+          zoomOnMouseWheel: 'shift',
+          moveOnMouseMove: true,
+          moveOnMouseWheel: true
         }
       ],
       series: [
@@ -372,19 +1023,62 @@
           xAxisIndex: 0,
           yAxisIndex: 0,
           data: boxData,
-          itemStyle: { color: '#00bcd4', borderColor: '#008ba3' }
+          itemStyle: {
+            color: 'rgba(105, 216, 199, 0.16)',
+            borderColor: 'rgba(105, 216, 199, 0.58)',
+            borderWidth: 1.5
+          },
+          emphasis: {
+            itemStyle: { color: 'rgba(105, 216, 199, 0.28)', borderColor: '#69d8c7' }
+          }
         },
         {
-          // 修改 Series 名称
           name: '收官MMR',
           type: 'line',
           xAxisIndex: 0,
           yAxisIndex: 0,
-          data: endOfDayLine, // 使用新数据
-          smooth: true,
-          lineStyle: { width: 3, color: '#ffeb3b' },
-          symbol: 'circle', // 改为 circle 可以看到具体的点
-          symbolSize: 6
+          data: endOfDayLine,
+          smooth: 0.28,
+          smoothMonotone: 'x',
+          showSymbol: false,
+          symbol: 'circle',
+          symbolSize: 9,
+          lineStyle: {
+            width: 4,
+            color: mmrGradient,
+            shadowColor: 'rgba(246, 200, 95, 0.32)',
+            shadowBlur: 12,
+            shadowOffsetY: 4
+          },
+          areaStyle: { color: mmrAreaGradient },
+          itemStyle: { color: '#ffe69a', borderColor: '#202224', borderWidth: 3 },
+          emphasis: {
+            focus: 'series',
+            scale: 1.4,
+            itemStyle: { color: '#fff2bd', borderColor: '#f6c85f', borderWidth: 3 }
+          },
+          endLabel: {
+            show: true,
+            formatter: ({ value }) => `${value} MMR`,
+            color: '#fff2bd',
+            fontWeight: 700,
+            fontSize: 12,
+            backgroundColor: 'rgba(246, 200, 95, 0.14)',
+            borderColor: 'rgba(246, 200, 95, 0.34)',
+            borderWidth: 1,
+            borderRadius: 6,
+            padding: [5, 7],
+            distance: 10
+          },
+          labelLayout: { moveOverlap: 'shiftY' },
+          markPoint: {
+            symbol: 'circle',
+            symbolSize: 12,
+            label: { show: false },
+            itemStyle: { color: '#fff2bd', borderColor: '#f6c85f', borderWidth: 3 },
+            data: [{ coord: [latestDate, latestMMR] }]
+          },
+          z: 5
         },
         {
           name: '胜',
@@ -393,7 +1087,9 @@
           xAxisIndex: 1,
           yAxisIndex: 1,
           data: winsData,
-          itemStyle: { color: '#4caf50' }
+          barMaxWidth: 18,
+          itemStyle: { color: '#63c58d', borderRadius: [4, 4, 0, 0] },
+          emphasis: { itemStyle: { color: '#7cdda5' } }
         },
         {
           name: '负',
@@ -402,7 +1098,22 @@
           xAxisIndex: 1,
           yAxisIndex: 1,
           data: lossesData,
-          itemStyle: { color: '#f44336' }
+          barMaxWidth: 18,
+          itemStyle: { color: '#de6b72', borderRadius: [4, 4, 0, 0] },
+          emphasis: { itemStyle: { color: '#f1838a' } }
+        }
+      ],
+      media: [
+        {
+          query: { maxWidth: 640 },
+          option: {
+            title: { left: 16, top: 14 },
+            legend: { left: 16, right: 'auto', top: 72, itemGap: 12 },
+            grid: [
+              { left: 48, right: 70, height: '46%', top: 132 },
+              { left: 48, right: 70, top: '75%', height: '12%' }
+            ]
+          }
         }
       ]
     };
