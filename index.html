@@ -879,11 +879,9 @@
   }
 
   function drawChart(mmrMap, wlMap) {
-    const existingDates = [...mmrMap.keys()].sort();
-    const firstYear = existingDates[0]?.slice(0, 4) || String(new Date().getFullYear());
-    const startingDate = `${firstYear}-01-01`;
+    const startingDate = "2025-12-06";
 
-    // 补充 01/01 的 200 MMR 起始点，只用于图表展示，不影响段位和胜负统计。
+    // 补充 2025/12/06 的 200 MMR 起始点，只用于图表展示，不影响段位和胜负统计。
     if (!mmrMap.has(startingDate)) {
       mmrMap.set(startingDate, [200]);
       wlMap.set(startingDate, { wins: 0, losses: 0 });
@@ -932,7 +930,7 @@
       animationEasing: 'cubicOut',
       title: {
         text: 'MMR 趋势',
-        subtext: '每日收官 · 01/01 起始 200 MMR',
+        subtext: '每日收官 · 2025/12/06 起始 200 MMR',
         left: 24,
         top: 18,
         itemGap: 8,
