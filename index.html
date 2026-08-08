@@ -331,22 +331,22 @@
     <div class="brand-lockup">
       <div class="brand-mark" aria-hidden="true">D2</div>
       <div>
-        <p class="eyebrow">Ranked progression hub</p>
+        <p class="eyebrow">Ranked progress</p>
         <h1>Dota 2 <span>MMR Tracker</span></h1>
-        <p class="app-subtitle">记录每一次上分，清楚看见距离下个段位还有多远。</p>
+        <p class="app-subtitle">记录上分轨迹，看清下个段位。</p>
       </div>
     </div>
-    <div class="live-chip">云端实时同步</div>
+    <div class="live-chip">实时同步</div>
   </header>
 
   <main>
     <section class="rank-display" aria-labelledby="rank-overview-title">
       <div class="panel-heading">
         <div>
-          <p class="section-kicker">Rank overview</p>
-          <h2 id="rank-overview-title">段位进度</h2>
+          <p class="section-kicker">Rank</p>
+          <h2 id="rank-overview-title">段位与目标</h2>
         </div>
-        <p class="panel-copy">当前实力与三个关键目标一屏掌握，按 +25 和 +50 MMR 估算所需胜场。</p>
+        <p class="panel-copy">按 +25 / +50 MMR 估算晋级所需胜场。</p>
       </div>
 
       <div class="rank-layout">
@@ -354,7 +354,7 @@
           <img class="rank-medal" id="current-rank-logo" alt="" hidden>
           <div class="rank-copy">
             <div class="rank-title">当前段位</div>
-            <div class="rank-name" id="current-rank">暂无数据</div>
+            <div class="rank-name" id="current-rank">等待同步</div>
             <div class="rank-mmr" id="current-mmr">--</div>
           </div>
         </div>
@@ -367,9 +367,9 @@
 
     <section class="record-panel" aria-labelledby="record-title">
       <div class="panel-heading">
-        <p class="section-kicker">MMR log</p>
-        <h2 id="record-title">记录新分数</h2>
-        <p class="panel-copy">写入后会自动同步趋势图和段位目标。</p>
+        <p class="section-kicker">Quick log</p>
+        <h2 id="record-title">记录 MMR</h2>
+        <p class="panel-copy">保存后立即更新趋势和目标。</p>
       </div>
 
       <div class="input-group">
@@ -381,11 +381,11 @@
           <span>当前 MMR</span>
           <input type="number" id="mmr-input" placeholder="例如 2480">
         </label>
-        <button id="save-btn">记录 MMR</button>
+        <button id="save-btn">保存 MMR</button>
       </div>
     </section>
 
-    <p id="loading-text" class="loading" aria-live="polite">正在同步云端数据...</p>
+    <p id="loading-text" class="loading" aria-live="polite">同步数据中...</p>
 
     <section class="chart-panel" aria-label="MMR 趋势图">
       <div id="chart"></div>
@@ -394,9 +394,9 @@
     <section class="hero-section" aria-labelledby="hero-section-title">
       <div class="hero-section-head">
         <div>
-          <p class="section-kicker">Recent hero pool</p>
-          <h2 class="hero-section-title" id="hero-section-title">最近常用英雄</h2>
-          <p class="hero-section-copy">统计最近 30 把中出场次数最多的 5 个英雄，并展示每个英雄最近 10 把的胜负记录。</p>
+          <p class="section-kicker">Hero pool</p>
+          <h2 class="hero-section-title" id="hero-section-title">近期英雄池</h2>
+          <p class="hero-section-copy">最近 30 场最常用的 5 个英雄，以及各自最近 10 场胜负。</p>
         </div>
         <form class="steam-form" id="steam-form">
           <input
@@ -408,15 +408,15 @@
             aria-label="Steam Account ID 或 SteamID64"
             required
           >
-          <button type="submit" id="load-heroes-btn">获取英雄</button>
+          <button type="submit" id="load-heroes-btn">查询</button>
         </form>
       </div>
-      <p class="hero-status" id="hero-status" aria-live="polite">输入数字格式的 Account ID 或 SteamID64 开始查询。</p>
+      <p class="hero-status" id="hero-status" aria-live="polite">输入 Account ID 或 SteamID64。</p>
       <div class="hero-grid" id="hero-grid"></div>
     </section>
   </main>
 
-  <footer class="app-footer">MMR 记录由 Firebase 同步 · 英雄与对局数据来自 OpenDota</footer>
+  <footer class="app-footer">Firebase 实时同步 · OpenDota 对局数据</footer>
 </div>
 
 <!-- ECharts -->
@@ -500,8 +500,8 @@
         div.classList.add("is-complete");
         div.innerHTML = `
           <img class="goal-logo" src="${goal.logo}" alt="${goal.name}段位徽章">
-          <div class="goal-name">目标：${goal.name}</div>
-          <div class="goal-done">✅ 已达成</div>
+          <div class="goal-name">目标 ${goal.name}</div>
+          <div class="goal-done">已达成</div>
         `;
       } else {
         const normalGames = Math.ceil(diff / 25);
@@ -509,9 +509,9 @@
         div.innerHTML = `
           <img class="goal-logo" src="${goal.logo}" alt="${goal.name}段位徽章">
           <div class="goal-name">距离 ${goal.name}</div>
-          <div class="goal-diff">还差 ${diff} 分</div>
-          <div class="goal-games">普通(+25): <span>${normalGames}</span> 场</div>
-          <div class="goal-games">双倍(+50): <span>${doubleGames}</span> 场</div>
+          <div class="goal-diff">还差 ${diff} MMR</div>
+          <div class="goal-games">+25 / 场：<span>${normalGames}</span> 场</div>
+          <div class="goal-games">+50 / 场：<span>${doubleGames}</span> 场</div>
         `;
       }
       container.appendChild(div);
@@ -543,7 +543,7 @@
     const value = String(steamId).trim();
 
     if (!/^\d+$/.test(value)) {
-      throw new Error("请输入数字格式的 Account ID 或 SteamID64");
+      throw new Error("请输入 Account ID 或 SteamID64");
     }
 
     let accountId = BigInt(value);
@@ -658,7 +658,7 @@
       : "--";
     const recentRateBadge = document.createElement("span");
     recentRateBadge.className = "hero-recent-rate";
-    recentRateBadge.textContent = `近10 ${recentRate}%`;
+    recentRateBadge.textContent = `近 10 场 ${recentRate}%`;
     nameRow.append(name, recentRateBadge);
 
     const stats = document.createElement("div");
@@ -669,7 +669,7 @@
 
     const recentLabel = document.createElement("div");
     recentLabel.className = "recent-label";
-    recentLabel.innerHTML = `<span>该英雄最近 ${hero.matches.length} 把</span><strong>${recentWins} 胜 · ${recentLosses} 负</strong>`;
+    recentLabel.innerHTML = `<span>最近 ${hero.matches.length} 场</span><strong>${recentWins} 胜 · ${recentLosses} 负</strong>`;
 
     const results = document.createElement("div");
     results.className = "match-results";
@@ -701,9 +701,9 @@
 
   async function loadHeroOverview(steamId) {
     loadHeroesBtn.disabled = true;
-    loadHeroesBtn.textContent = "获取中...";
+    loadHeroesBtn.textContent = "查询中...";
     heroStatus.className = "hero-status";
-    heroStatus.textContent = "正在读取英雄池与最近战绩...";
+    heroStatus.textContent = "读取近期英雄池...";
     heroGrid.replaceChildren();
 
     try {
@@ -739,13 +739,13 @@
       });
 
       heroGrid.replaceChildren(...cards.map(renderHeroCard));
-      heroStatus.textContent = `Account ID ${accountId} · 已统计最近 ${Math.min(recentMatches.length, 30)} 把中的 ${cards.length} 个常用英雄，点击胜负方块可查看对局详情。`;
+      heroStatus.textContent = `Account ID ${accountId} · 最近 ${Math.min(recentMatches.length, 30)} 场 · ${cards.length} 个常用英雄`;
     } catch (error) {
       heroStatus.className = "hero-status error";
       heroStatus.textContent = error.message || "英雄数据获取失败，请稍后重试";
     } finally {
       loadHeroesBtn.disabled = false;
-      loadHeroesBtn.textContent = "获取英雄";
+      loadHeroesBtn.textContent = "查询";
     }
   }
 
@@ -768,7 +768,7 @@
     const mmrValue = parseInt(document.getElementById("mmr-input").value);
 
     if (!date || isNaN(mmrValue)) {
-      alert("请输入有效的日期和 MMR 分数");
+      alert("请填写日期和 MMR");
       return;
     }
 
@@ -784,10 +784,10 @@
       document.getElementById("mmr-input").value = "";
     } catch (err) {
       console.error("写入失败:", err);
-      alert("保存失败，请检查 Firebase Rules");
+      alert("保存失败，请稍后重试");
     } finally {
       saveBtn.disabled = false;
-      saveBtn.textContent = "记录 MMR";
+      saveBtn.textContent = "保存 MMR";
     }
   });
 
@@ -930,7 +930,7 @@
       animationEasing: 'cubicOut',
       title: {
         text: 'MMR 趋势',
-        subtext: '每日收官分数 · 01/01 从 200 MMR 起步',
+        subtext: '每日收官 · 01/01 起始 200 MMR',
         left: 24,
         top: 18,
         itemGap: 8,
@@ -954,8 +954,8 @@
       legend: {
         top: 24,
         right: 24,
-        data: ['箱线图', '收官MMR', '胜', '负'],
-        selected: { '箱线图': false },
+        data: ['日内波动', '收官 MMR', '胜', '负'],
+        selected: { '日内波动': false },
         itemWidth: 14,
         itemHeight: 8,
         itemGap: 18,
@@ -1028,7 +1028,7 @@
       ],
       series: [
         {
-          name: '箱线图',
+          name: '日内波动',
           type: 'boxplot',
           xAxisIndex: 0,
           yAxisIndex: 0,
@@ -1043,7 +1043,7 @@
           }
         },
         {
-          name: '收官MMR',
+          name: '收官 MMR',
           type: 'line',
           xAxisIndex: 0,
           yAxisIndex: 0,
