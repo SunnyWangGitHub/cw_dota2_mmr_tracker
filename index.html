@@ -346,7 +346,7 @@
           <p class="section-kicker">Rank</p>
           <h2 id="rank-overview-title">段位与目标</h2>
         </div>
-        <p class="panel-copy">按 +25 / +50 MMR 估算晋级所需胜场。</p>
+        <p class="panel-copy">单场胜利 +32 MMR，失败 -25 MMR。</p>
       </div>
 
       <div class="rank-layout">
@@ -482,6 +482,8 @@
 
   // --- 更新目标计算器 ---
   function updateGoals(currentMMR) {
+    const WIN_MMR = 32;
+    const LOSS_MMR = 25;
     const goals = [
       { name: "Archon (统帅)", target: 2310, logo: RANK_LOGOS.archon },
       { name: "Legend (传奇)", target: 3080, logo: RANK_LOGOS.legend },
@@ -504,14 +506,14 @@
           <div class="goal-done">已达成</div>
         `;
       } else {
-        const normalGames = Math.ceil(diff / 25);
-        const doubleGames = Math.ceil(diff / 50);
+        const winsNeeded = Math.ceil(diff / WIN_MMR);
         div.innerHTML = `
           <img class="goal-logo" src="${goal.logo}" alt="${goal.name}段位徽章">
           <div class="goal-name">距离 ${goal.name}</div>
           <div class="goal-diff">还差 ${diff} MMR</div>
-          <div class="goal-games">+25 / 场：<span>${normalGames}</span> 场</div>
-          <div class="goal-games">+50 / 场：<span>${doubleGames}</span> 场</div>
+          <div class="goal-games">胜利：<span>+${WIN_MMR}</span> MMR</div>
+          <div class="goal-games">失败：<span>-${LOSS_MMR}</span> MMR</div>
+          <div class="goal-games">至少连胜：<span>${winsNeeded}</span> 场</div>
         `;
       }
       container.appendChild(div);
