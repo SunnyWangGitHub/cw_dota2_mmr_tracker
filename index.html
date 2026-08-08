@@ -839,6 +839,17 @@
       return a.secondarySortKey - b.secondarySortKey;
     });
 
+    const rankMilestones = [
+      { name: "卫士", target: 770, color: "#68c8bb" },
+      { name: "统帅", target: 2310, color: "#e1b45f" },
+      { name: "传奇", target: 3080, color: "#d66b78" }
+    ].map(milestone => {
+      const firstRecord = rawRecords.find(record => Number(record.mmr) >= milestone.target);
+      return firstRecord
+        ? { ...milestone, date: firstRecord.date, achievedMMR: Number(firstRecord.mmr) }
+        : null;
+    }).filter(Boolean);
+
     // 更新最新段位和目标
     const latestRecord = rawRecords[rawRecords.length - 1];
     updateRankDisplay(latestRecord.mmr);
@@ -866,7 +877,7 @@
       prevMMR = record.mmr;
     });
 
-    drawChart(map, winLossMap);
+    drawChart(map, winLossMap, rankMilestones);
   });
 
   function calcBox(arr) {
@@ -878,7 +889,7 @@
     return [sortedArr[0], q1, mid, q3, sortedArr[sortedArr.length - 1]];
   }
 
-  function drawChart(mmrMap, wlMap) {
+  function drawChart(mmrMap, wlMap, rankMilestones) {
     const startingDate = "2025-12-06";
 
     // 补充 2025/12/06 的 200 MMR 起始点，只用于图表展示，不影响段位和胜负统计。
@@ -913,6 +924,16 @@
 
     const latestDate = dates[dates.length - 1];
     const latestMMR = endOfDayLine[endOfDayLine.length - 1];
+    const milestoneData = rankMilestones.map(milestone => ({
+      name: milestone.name,
+      value: [milestone.date, milestone.target],
+      achievedMMR: milestone.achievedMMR,
+      itemStyle: {
+        color: milestone.color,
+        borderColor: '#f7f3ea',
+        borderWidth: 2
+      }
+    }));
     const mmrGradient = new echarts.graphic.LinearGradient(0, 0, 1, 0, [
       { offset: 0, color: '#f6c85f' },
       { offset: 0.55, color: '#ffe69a' },
@@ -954,7 +975,7 @@
       legend: {
         top: 24,
         right: 24,
-        data: ['日内波动', '收官 MMR', '胜', '负'],
+        data: ['日内波动', '收官 MMR', '段位里程碑', '胜', '负'],
         selected: { '日内波动': false },
         itemWidth: 14,
         itemHeight: 8,
@@ -1088,7 +1109,60 @@
             itemStyle: { color: '#fff2bd', borderColor: '#f6c85f', borderWidth: 3 },
             data: [{ coord: [latestDate, latestMMR] }]
           },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            data: rankMilestones.map(milestone => ({
+              name: milestone.name,
+              yAxis: milestone.target,
+              lineStyle: { color: milestone.color, opacity: 0.28, type: 'dashed', width: 1 },
+              label: {
+                show: true,
+                position: 'insideStartTop',
+                formatter: `${milestone.name} · ${milestone.target}`,
+                color: milestone.color,
+                fontSize: 10,
+                fontWeight: 700
+              }
+            }))
+          },
           z: 5
+        },
+        {
+          name: '段位里程碑',
+          type: 'scatter',
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+          data: milestoneData,
+          symbol: 'diamond',
+          symbolSize: 18,
+          label: {
+            show: true,
+            position: 'top',
+            distance: 9,
+            formatter: params => {
+              const date = String(params.data.value[0]).slice(5).replace('-', '/');
+              return `${params.data.name}\n${date}`;
+            },
+            color: '#f3f4f5',
+            fontSize: 10,
+            fontWeight: 700,
+            lineHeight: 15,
+            backgroundColor: 'rgba(12, 14, 17, 0.9)',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            borderRadius: 6,
+            padding: [5, 7]
+          },
+          labelLayout: { hideOverlap: true, moveOverlap: 'shiftY' },
+          tooltip: {
+            trigger: 'item',
+            formatter: params => {
+              const data = params.data;
+              return `<strong>${data.name}</strong><br>首次达到：${data.value[0]}<br>当次记录：${data.achievedMMR} MMR`;
+            }
+          },
+          z: 8
         },
         {
           name: '胜',
